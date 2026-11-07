@@ -27,4 +27,6 @@ def create_app():
     def health():
         return jsonify(status="ok")
 
+    from app import models  # noqa: F401
+
     return app
