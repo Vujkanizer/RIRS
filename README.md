@@ -20,3 +20,30 @@ Lastnik lokala jo uporablja za pregled poslovanja. Gost rezervira mizo, natakar 
 - [Uporabniške zgodbe](docs/05-uporabniske-zgodbe.md)
 - [Wireframi](docs/06-wireframes.md)
 - [Arhitekturne odločitve](docs/adr/)
+
+## Lokalni zagon
+
+Backend in frontend tečeta ločeno.
+
+### Backend
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+flask run
+```
+
+API je na `http://localhost:5000`. V `.env` sta `DATABASE_URL` in `JWT_SECRET`. Baza se imenuje `glass`.
+
+### Frontend
+
+```powershell
+cd frontend
+npm install
+npm start
+```
+
+Vmesnik je na `http://localhost:5173`.
