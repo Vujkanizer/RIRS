@@ -1,0 +1,184 @@
+:root {
+  --zid: #e7eef2;
+  --papir: #ffffff;
+  --mastilo: #1b2836;
+  --priguseno: #5d6b7a;
+  --crta: #d3dde6;
+  --akcent: #146c72;
+  --akcent-tamni: #0e5257;
+  --slobodno: #e5f3f4;
+  --zauzeto: #eef1f4;
+  --greska: #9c3b3b;
+}
+
+body {
+  margin: 0;
+  background: var(--zid);
+  color: var(--mastilo);
+  font-family: "Segoe UI", sans-serif;
+}
+
+.stran {
+  max-width: 920px;
+  margin: 28px auto 48px;
+  padding: 0 16px;
+}
+
+.okvir {
+  background: var(--papir);
+  border: 1px solid var(--crta);
+  border-radius: 8px;
+  padding: 18px 20px;
+  margin-bottom: 12px;
+}
+
+.glava {
+  border-top: 4px solid var(--akcent);
+}
+
+h1,
+h2 {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+.znak {
+  color: var(--akcent);
+  font-weight: 700;
+}
+
+.polja {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--priguseno);
+  font-size: 13px;
+}
+
+input,
+textarea {
+  border: 1px solid var(--crta);
+  border-radius: 6px;
+  font: 16px/1.3 "Segoe UI", sans-serif;
+  color: var(--mastilo);
+  padding: 8px 10px;
+  background: #fff;
+}
+
+input:focus,
+textarea:focus {
+  outline: 2px solid var(--akcent);
+  border-color: var(--akcent);
+}
+
+input[type="date"],
+input[type="time"] {
+  width: 160px;
+}
+
+input[type="number"] {
+  width: 88px;
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.opomba-vrstica,
+.tiho {
+  color: var(--priguseno);
+  font-size: 14px;
+}
+
+.stolpci {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.mize {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.miza {
+  width: 112px;
+  height: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--slobodno);
+  border: 1px solid var(--akcent);
+  border-radius: 8px;
+  color: var(--akcent-tamni);
+  font: inherit;
+  cursor: pointer;
+}
+
+.miza.izbrana {
+  background: var(--akcent);
+  color: #fff;
+}
+
+.miza:disabled {
+  background: var(--zauzeto);
+  border-color: var(--crta);
+  color: var(--priguseno);
+  cursor: default;
+}
+
+.stanje {
+  font-size: 12px;
+}
+
+.jedilnik {
+  min-height: 220px;
+}
+
+.rezerviraj {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: var(--akcent);
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 14px;
+  cursor: pointer;
+}
+
+.rezerviraj:hover {
+  background: var(--akcent-tamni);
+}
+
+.napaka {
+  color: var(--greska);
+}
+
+.uspeh {
+  color: var(--akcent-tamni);
+  font-weight: 600;
+}

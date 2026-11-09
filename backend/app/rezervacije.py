@@ -71,11 +71,15 @@ def proste_mize():
         trajanje = 120
 
     mize = db.session.scalars(db.select(Miza).order_by(Miza.stevilka)).all()
-    proste = [m for m in mize if miza_prosta(m.id, zacetek, trajanje)]
     return jsonify(
         [
-            {"id": m.id, "stevilka": m.stevilka, "stevilo_sedezev": m.stevilo_sedezev}
-            for m in proste
+            {
+                "id": m.id,
+                "stevilka": m.stevilka,
+                "stevilo_sedezev": m.stevilo_sedezev,
+                "prosta": miza_prosta(m.id, zacetek, trajanje),
+            }
+            for m in mize
         ]
     )
 

@@ -1,3 +1,5 @@
+import Rezervacija from "./Rezervacija";
+
 export default function App() {
-  return <h1>Glass</h1>;
+  return <Rezervacija />;
 }
