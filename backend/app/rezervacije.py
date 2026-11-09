@@ -5,9 +5,18 @@ from flask_jwt_extended import get_jwt_identity
 
 from app import db
 from app.auth import samo
-from app.models import Miza, Rezervacija
+from app.models import Miza, Rezervacija, Uporabnik
 
 bp = Blueprint("rezervacije", __name__, url_prefix="/api/rezervacije")
+
+
+def preberi_dan(vrednost):
+    if not isinstance(vrednost, str) or not vrednost.strip():
+        return None
+    try:
+        return datetime.strptime(vrednost.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def preberi_cas(vrednost):
@@ -54,6 +63,40 @@ def kot_json(rezervacija):
         "opomba": rezervacija.opomba or "",
         "status": rezervacija.status,
     }
+
+
+@bp.get("/dan")
+@samo("natakar")
+def dan():
+    izbran = preberi_dan(request.args.get("datum"))
+    if izbran is None:
+        return jsonify(napaka="Vnesite dan."), 400
+
+    zacetek = datetime.combine(izbran, datetime.min.time(), tzinfo=timezone.utc)
+    konec = zacetek + timedelta(days=1)
+    vrstice = db.session.execute(
+        db.select(Rezervacija.zacetek, Rezervacija.opomba, Miza.stevilka, Uporabnik.ime, Uporabnik.priimek)
+        .join(Miza, Rezervacija.miza_id == Miza.id)
+        .join(Uporabnik, Rezervacija.uporabnik_id == Uporabnik.id)
+        .where(
+            Rezervacija.status == "potrjena",
+            Rezervacija.zacetek >= zacetek,
+            Rezervacija.zacetek < konec,
+        )
+        .order_by(Rezervacija.zacetek)
+    ).all()
+    return jsonify(
+        [
+            {
+                "ura": vrstica.zacetek.astimezone(timezone.utc).strftime("%H:%M"),
+                "stevilka_mize": vrstica.stevilka,
+                "ime": vrstica.ime,
+                "priimek": vrstica.priimek,
+                "opomba": vrstica.opomba or "",
+            }
+            for vrstica in vrstice
+        ]
+    )
 
 
 @bp.get("/mize")
