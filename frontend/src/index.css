@@ -182,3 +182,30 @@ textarea {
   color: var(--akcent-tamni);
   font-weight: 600;
 }
+
+.natakar-glava {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.natakar-glava h1 {
+  margin: 0;
+}
+
+.rezervacije {
+  max-width: 320px;
+}
+
+.rezervacija-vrstica {
+  border: 1px solid var(--crta);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.rezervacija-vrstica strong {
+  display: block;
+  margin-bottom: 4px;
+}
