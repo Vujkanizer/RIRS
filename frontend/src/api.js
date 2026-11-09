@@ -7,7 +7,7 @@ export async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (response.status === 401) {
-    throw new Error("Za rezervacijo morate biti prijavljeni.");
+    throw new Error("Morate biti prijavljeni.");
   }
   if (!response.ok) {
     throw new Error(data.napaka || "Napaka.");
