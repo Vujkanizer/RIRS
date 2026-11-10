@@ -33,6 +33,70 @@ def postavka_json(postavka):
     }
 
 
+@bp.get("/mize")
+@samo("natakar")
+def mize():
+    mize = db.session.scalars(db.select(Miza).order_by(Miza.stevilka)).all()
+    odprta = {
+        narocilo.miza_id: narocilo.id
+        for narocilo in db.session.scalars(db.select(Narocilo).filter_by(status="odprto"))
+    }
+    return jsonify(
+        [
+            {
+                "id": miza.id,
+                "stevilka": miza.stevilka,
+                "status": miza.status,
+                "narocilo_id": odprta.get(miza.id),
+            }
+            for miza in mize
+        ]
+    )
+
+
+@bp.get("/jedilnik")
+@samo("natakar")
+def jedilnik():
+    jedi = db.session.scalars(db.select(Jed).order_by(Jed.kategorija, Jed.naziv)).all()
+    return jsonify(
+        [
+            {
+                "id": jed.id,
+                "naziv": jed.naziv,
+                "cena": format(jed.cena, "f"),
+                "kategorija": jed.kategorija,
+                "na_voljo": jed.zaloga > 0,
+            }
+            for jed in jedi
+        ]
+    )
+
+
+@bp.get("/<int:narocilo_id>/postavke")
+@samo("natakar")
+def seznam_postavk(narocilo_id):
+    if db.session.get(Narocilo, narocilo_id) is None:
+        return jsonify(napaka="Naročilo ne obstaja."), 404
+    vrstice = db.session.execute(
+        db.select(Postavka, Jed.naziv)
+        .join(Jed, Postavka.jed_id == Jed.id)
+        .where(Postavka.narocilo_id == narocilo_id)
+        .order_by(Postavka.id)
+    ).all()
+    return jsonify(
+        [
+            {
+                "id": postavka.id,
+                "naziv": naziv,
+                "kolicina": postavka.kolicina,
+                "cena": format(postavka.cena, "f"),
+                "status": postavka.status,
+            }
+            for postavka, naziv in vrstice
+        ]
+    )
+
+
 @bp.post("")
 @samo("natakar")
 def odpri():

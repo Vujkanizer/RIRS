@@ -174,6 +174,12 @@ textarea {
   background: var(--akcent-tamni);
 }
 
+.rezerviraj:disabled {
+  background: var(--zauzeto);
+  color: var(--priguseno);
+  cursor: default;
+}
+
 .napaka {
   color: var(--greska);
 }
@@ -195,7 +201,7 @@ textarea {
 }
 
 .rezervacije {
-  max-width: 320px;
+  max-width: none;
 }
 
 .rezervacija-vrstica {
@@ -208,4 +214,47 @@ textarea {
 .rezervacija-vrstica strong {
   display: block;
   margin-bottom: 4px;
+}
+
+.natakar-stran {
+  max-width: 1100px;
+}
+
+.natakar-stolpci {
+  display: grid;
+  grid-template-columns: 260px 1fr 1.15fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.meni-jed {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--crta);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--mastilo);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.meni-jed.izbrana {
+  border-color: var(--akcent);
+  background: var(--slobodno);
+}
+
+.meni-jed:disabled {
+  color: var(--priguseno);
+  cursor: default;
+}
+
+h3 {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  color: var(--priguseno);
 }
