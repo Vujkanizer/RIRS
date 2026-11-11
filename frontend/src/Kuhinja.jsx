@@ -4,6 +4,7 @@ import { api } from "./api";
 const STATUS = {
   caka: "čaka",
   pripravljena: "pripravljena",
+  postrezena: "postrežena",
 };
 
 export default function Kuhinja() {
@@ -48,6 +49,19 @@ export default function Kuhinja() {
     };
   }, []);
 
+  async function pripravi(skupina, jed) {
+    setNapaka("");
+    try {
+      await api(`/api/narocila/${skupina.narocilo_id}/postavke/${jed.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "pripravljena" }),
+      });
+      setMize(await api("/api/kuhinja"));
+    } catch (err) {
+      setNapaka(err.message);
+    }
+  }
+
   return (
     <main className="stran natakar-stran">
       <header className="okvir glava natakar-glava">
@@ -66,8 +80,15 @@ export default function Kuhinja() {
               </h2>
               {skupina.jedi.map((jed) => (
                 <div key={jed.id} className="kuhinja-jed">
-                  <strong>{jed.naziv}</strong>
-                  <div className="tiho">status: {STATUS[jed.status] || jed.status}</div>
+                  <div>
+                    <strong>{jed.naziv}</strong>
+                    <div className="tiho">status: {STATUS[jed.status] || jed.status}</div>
+                  </div>
+                  {jed.status === "caka" && (
+                    <button type="button" className="status-gumb" onClick={() => pripravi(skupina, jed)}>
+                      Pripravljena
+                    </button>
+                  )}
                 </div>
               ))}
             </article>
