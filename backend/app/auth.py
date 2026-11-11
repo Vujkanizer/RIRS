@@ -9,7 +9,8 @@ def samo(vloga):
         @wraps(fn)
         def ovita(*args, **kwargs):
             verify_jwt_in_request()
-            if get_jwt().get("vloga") != vloga:
+            trenutna = get_jwt().get("vloga")
+            if trenutna != vloga and trenutna != "administrator":
                 return jsonify(napaka="Nimate dovoljenja."), 403
             return fn(*args, **kwargs)
 

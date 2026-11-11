@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import Odjava from "./Odjava";
 
 const KATEGORIJE = [
   ["predjed", "Predjed"],
@@ -35,6 +36,21 @@ function znesekNarocila(postavke) {
   return cena(vsota);
 }
 
+function skupineNaRacunu(postavke) {
+  const skupine = new Map();
+  for (const postavka of postavke) {
+    const kljuc = `${postavka.jed_id}-${postavka.status}-${postavka.cena}`;
+    const obstojeca = skupine.get(kljuc);
+    if (obstojeca) {
+      obstojeca.kolicina += postavka.kolicina;
+      obstojeca.ids.push(postavka.id);
+    } else {
+      skupine.set(kljuc, { ...postavka, ids: [postavka.id] });
+    }
+  }
+  return [...skupine.values()];
+}
+
 function sZalogo(jedi, kuhinja, bar) {
   const zaloga = new Map([...kuhinja, ...bar].map((artikel) => [artikel.id, artikel.zaloga]));
   return jedi.map((jed) => ({ ...jed, zaloga: zaloga.get(jed.id) ?? 0 }));
@@ -50,47 +66,63 @@ export default function Natakar() {
   const [jedId, setJedId] = useState(null);
   const [napaka, setNapaka] = useState("");
   const [narociloNapaka, setNarociloNapaka] = useState("");
+  const [potrdiRacun, setPotrdiRacun] = useState(false);
+  const [zakljucujem, setZakljucujem] = useState(false);
+  const [zaRezervacijo, setZaRezervacijo] = useState(null);
+  const [zakljucujemRezervacijo, setZakljucujemRezervacijo] = useState(false);
 
   const miza = mize.find((stavka) => stavka.id === mizaId) || null;
 
   useEffect(() => {
     let preklicano = false;
-    api(`/api/rezervacije/dan?datum=${datum}`)
-      .then((data) => {
+
+    async function nalozi() {
+      try {
+        const data = await api(`/api/rezervacije/dan?datum=${datum}`);
         if (!preklicano) {
           setVrstice(data);
           setNapaka("");
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!preklicano) {
           setVrstice([]);
           setNapaka(err.message);
         }
-      });
+      }
+    }
+
+    nalozi();
+    const casovnik = setInterval(nalozi, 5000);
     return () => {
       preklicano = true;
+      clearInterval(casovnik);
     };
   }, [datum]);
 
   useEffect(() => {
     let preklicano = false;
-    Promise.all([
-      api("/api/narocila/mize"),
-      api("/api/narocila/jedilnik"),
-      api("/api/zaloge/kuhinja"),
-      api("/api/zaloge/bar"),
-    ])
-      .then(([mizeData, jediData, kuhinja, bar]) => {
+
+    async function nalozi() {
+      try {
+        const [mizeData, jediData, kuhinja, bar] = await Promise.all([
+          api("/api/narocila/mize"),
+          api("/api/narocila/jedilnik"),
+          api("/api/zaloge/kuhinja"),
+          api("/api/zaloge/bar"),
+        ]);
         if (preklicano) return;
         setMize(mizeData);
         setJedi(sZalogo(jediData, kuhinja, bar));
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!preklicano) setNarociloNapaka(err.message);
-      });
+      }
+    }
+
+    nalozi();
+    const casovnik = setInterval(nalozi, 5000);
     return () => {
       preklicano = true;
+      clearInterval(casovnik);
     };
   }, []);
 
@@ -99,18 +131,53 @@ export default function Natakar() {
       setPostavke([]);
       return;
     }
+    const narociloId = miza.narocilo_id;
     let preklicano = false;
-    api(`/api/narocila/${miza.narocilo_id}/postavke`)
-      .then((data) => {
+
+    async function nalozi() {
+      try {
+        const data = await api(`/api/narocila/${narociloId}/postavke`);
         if (!preklicano) setPostavke(data);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!preklicano) setNarociloNapaka(err.message);
-      });
+      }
+    }
+
+    nalozi();
+    const casovnik = setInterval(nalozi, 5000);
     return () => {
       preklicano = true;
+      clearInterval(casovnik);
     };
   }, [miza?.narocilo_id]);
+
+  async function zakljuciRezervacijo() {
+    if (!zaRezervacijo) return;
+    setNapaka("");
+    setZakljucujemRezervacijo(true);
+    try {
+      await api(`/api/rezervacije/${zaRezervacijo.id}/zakljucek`, { method: "POST" });
+      setZaRezervacijo(null);
+      setVrstice(await api(`/api/rezervacije/dan?datum=${datum}`));
+    } catch (err) {
+      setZaRezervacijo(null);
+      setNapaka(err.message);
+    } finally {
+      setZakljucujemRezervacijo(false);
+    }
+  }
+
+  async function zasedi() {
+    setNarociloNapaka("");
+    try {
+      await api(`/api/narocila/mize/${miza.id}/zasedi`, { method: "POST" });
+      setMize((stanje) =>
+        stanje.map((stavka) => (stavka.id === miza.id ? { ...stavka, status: "zasedena" } : stavka)),
+      );
+    } catch (err) {
+      setNarociloNapaka(err.message);
+    }
+  }
 
   async function odpri() {
     setNarociloNapaka("");
@@ -129,13 +196,26 @@ export default function Natakar() {
     }
   }
 
-  async function postrezi(postavka) {
+  async function postrezi(ids) {
     setNarociloNapaka("");
     try {
-      await api(`/api/narocila/${miza.narocilo_id}/postavke/${postavka.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "postrezena" }),
-      });
+      for (const id of ids) {
+        await api(`/api/narocila/${miza.narocilo_id}/postavke/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "postrezena" }),
+        });
+      }
+      setPostavke(await api(`/api/narocila/${miza.narocilo_id}/postavke`));
+    } catch (err) {
+      setPostavke(await api(`/api/narocila/${miza.narocilo_id}/postavke`));
+      setNarociloNapaka(err.message);
+    }
+  }
+
+  async function odstrani(id) {
+    setNarociloNapaka("");
+    try {
+      await api(`/api/narocila/${miza.narocilo_id}/postavke/${id}`, { method: "DELETE" });
       setPostavke(await api(`/api/narocila/${miza.narocilo_id}/postavke`));
     } catch (err) {
       setNarociloNapaka(err.message);
@@ -144,14 +224,19 @@ export default function Natakar() {
 
   async function zakljuci() {
     setNarociloNapaka("");
+    setZakljucujem(true);
     try {
       await api(`/api/narocila/${miza.narocilo_id}/zakljucek`, { method: "POST" });
+      setPotrdiRacun(false);
       setMize(await api("/api/narocila/mize"));
       setMizaId(null);
       setPostavke([]);
       setJedId(null);
     } catch (err) {
+      setPotrdiRacun(false);
       setNarociloNapaka(err.message);
+    } finally {
+      setZakljucujem(false);
     }
   }
 
@@ -172,7 +257,6 @@ export default function Natakar() {
       ]);
       setPostavke(postavkeData);
       setJedi(sZalogo(jediData, kuhinja, bar));
-      setJedId(null);
     } catch (err) {
       setNarociloNapaka(err.message);
     }
@@ -188,16 +272,14 @@ export default function Natakar() {
           Dan
           <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} />
         </label>
+        {localStorage.getItem("vloga") !== "administrator" && <Odjava />}
       </header>
 
       <div className="natakar-stolpci">
         <section className="okvir rezervacije">
           <h2>Rezervacije</h2>
           {vrstice.map((vrstica) => (
-            <article
-              key={`${vrstica.ura}-${vrstica.stevilka_mize}-${vrstica.ime}-${vrstica.priimek}`}
-              className="rezervacija-vrstica"
-            >
+            <article key={vrstica.id} className="rezervacija-vrstica">
               <strong>
                 {vrstica.ura} · Miza {vrstica.stevilka_mize}
               </strong>
@@ -205,23 +287,28 @@ export default function Natakar() {
                 {vrstica.ime} {vrstica.priimek}
               </div>
               <div>Opomba: {vrstica.opomba}</div>
+              <button type="button" className="status-gumb" onClick={() => setZaRezervacijo(vrstica)}>
+                Zaključi
+              </button>
             </article>
           ))}
           {napaka && <p className="napaka">{napaka}</p>}
-          <p className="tiho">Odpovedane rezervacije niso na seznamu.</p>
+          <p className="tiho">Zaključek sprosti mizo za novo rezervacijo.</p>
         </section>
 
         <section className="okvir">
           <h2>Mize</h2>
           <div className="mize">
             {mize.map((stavka) => {
-              const lahko = stavka.status === "zasedena" || stavka.narocilo_id;
+              const zasedena = stavka.status !== "prosta" || Boolean(stavka.narocilo_id);
+              const razred = ["miza", zasedena ? "zasedena" : "", stavka.id === mizaId ? "izbrana" : ""]
+                .filter(Boolean)
+                .join(" ");
               return (
                 <button
                   key={stavka.id}
                   type="button"
-                  className={stavka.id === mizaId ? "miza izbrana" : "miza"}
-                  disabled={!lahko}
+                  className={razred}
                   onClick={() => setMizaId(stavka.id)}
                 >
                   <span>Miza {stavka.stevilka}</span>
@@ -234,29 +321,45 @@ export default function Natakar() {
 
         <section className="okvir">
           <h2>{miza ? `Naročilo · Miza ${miza.stevilka}` : "Naročilo"}</h2>
-          {!miza && <p className="tiho">Izberite zasedeno mizo.</p>}
-          {miza && !miza.narocilo_id && (
+          {!miza && <p className="tiho">Izberite mizo.</p>}
+          {miza && miza.status === "prosta" && !miza.narocilo_id && (
+            <button className="rezerviraj" type="button" onClick={zasedi}>
+              Zasedi mizo
+            </button>
+          )}
+          {miza && miza.status !== "prosta" && !miza.narocilo_id && (
             <button className="rezerviraj" type="button" onClick={odpri}>
               Odpri naročilo
             </button>
           )}
           {miza?.narocilo_id && (
             <>
-              {postavke.map((postavka) => (
-                <div key={postavka.id} className="kuhinja-jed">
-                  <div>
-                    <strong>{postavka.naziv}</strong>
-                    <div className="tiho">
-                      {STATUS[postavka.status] || postavka.status} · {postavka.kolicina} · {cena(postavka.cena)}
+              <div className="racun">
+                {skupineNaRacunu(postavke).map((postavka) => (
+                  <div key={postavka.ids.join("-")} className="kuhinja-jed">
+                    <div>
+                      <strong>{postavka.naziv}</strong>
+                      <div className="tiho">
+                        {STATUS[postavka.status] || postavka.status} · {postavka.kolicina} × {cena(postavka.cena)}
+                      </div>
+                    </div>
+                    <div className="vrstica-gumbi">
+                      <button
+                        type="button"
+                        className="drugotni"
+                        onClick={() => odstrani(postavka.ids[postavka.ids.length - 1])}
+                      >
+                        Obriši
+                      </button>
+                      {lahkoPostrezi(postavka) && (
+                        <button type="button" className="status-gumb" onClick={() => postrezi(postavka.ids)}>
+                          Postrežena
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {lahkoPostrezi(postavka) && (
-                    <button type="button" className="status-gumb" onClick={() => postrezi(postavka)}>
-                      Postrežena
-                    </button>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
               {KATEGORIJE.map(([kljuc, naslov]) => {
                 const skupina = jedi.filter((jed) => jed.kategorija === kljuc);
                 if (skupina.length === 0) return null;
@@ -290,7 +393,7 @@ export default function Natakar() {
                 Dodaj na naročilo
               </button>
               <p>Znesek: {znesekNarocila(postavke)}</p>
-              <button className="rezerviraj" type="button" onClick={zakljuci}>
+              <button className="rezerviraj" type="button" onClick={() => setPotrdiRacun(true)}>
                 Zaključi račun
               </button>
             </>
@@ -298,6 +401,52 @@ export default function Natakar() {
           {narociloNapaka && <p className="napaka">{narociloNapaka}</p>}
         </section>
       </div>
+
+      {zaRezervacijo && (
+        <div className="zavesa">
+          <div className="pogovor" role="dialog" aria-modal="true" aria-labelledby="rezervacija-naslov">
+            <h2 id="rezervacija-naslov">Zaključek rezervacije</h2>
+            <p>Ali res želite zaključiti rezervacijo?</p>
+            <p>
+              {zaRezervacijo.ura} · Miza {zaRezervacijo.stevilka_mize}
+            </p>
+            <p>
+              {zaRezervacijo.ime} {zaRezervacijo.priimek}
+            </p>
+            <div className="pogovor-gumbi">
+              <button
+                type="button"
+                className="drugotni"
+                onClick={() => setZaRezervacijo(null)}
+                disabled={zakljucujemRezervacijo}
+              >
+                Ne
+              </button>
+              <button type="button" className="status-gumb" onClick={zakljuciRezervacijo} disabled={zakljucujemRezervacijo}>
+                Da
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {potrdiRacun && miza && (
+        <div className="zavesa">
+          <div className="pogovor" role="dialog" aria-modal="true" aria-labelledby="racun-naslov">
+            <h2 id="racun-naslov">Zaključek računa</h2>
+            <p>Ali res želite zaključiti račun za mizo {miza.stevilka}?</p>
+            <p>Znesek: {znesekNarocila(postavke)}</p>
+            <div className="pogovor-gumbi">
+              <button type="button" className="drugotni" onClick={() => setPotrdiRacun(false)} disabled={zakljucujem}>
+                Ne
+              </button>
+              <button type="button" className="status-gumb" onClick={zakljuci} disabled={zakljucujem}>
+                Da
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

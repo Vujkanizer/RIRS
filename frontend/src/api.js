@@ -7,7 +7,12 @@ export async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (response.status === 401) {
-    throw new Error("Morate biti prijavljeni.");
+    if (localStorage.getItem("token")) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("vloga");
+      window.dispatchEvent(new Event("glass-seja"));
+    }
+    throw new Error(data.napaka || "Morate biti prijavljeni.");
   }
   if (!response.ok) {
     throw new Error(data.napaka || "Napaka.");

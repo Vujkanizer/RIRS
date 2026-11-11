@@ -41,7 +41,7 @@ class Rezervacija(db.Model):
     __tablename__ = "rezervacija"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('potrjena', 'odpovedana', 'gost_prisel')",
+            "status IN ('potrjena', 'odpovedana', 'gost_prisel', 'zakljucena')",
             name="ck_rezervacija_status",
         ),
     )
