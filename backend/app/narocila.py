@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
 from app import db
 from app.auth import samo
-from app.models import Jed, Miza, Narocilo, Postavka, Rezervacija, Skladisce
+from app.models import Jed, Miza, Narocilo, Postavka, Rezervacija, Skladisce, Transakcija
 from app.rezervacije import preberi_stevilo
 
 bp = Blueprint("narocila", __name__, url_prefix="/api/narocila")
@@ -213,3 +214,49 @@ def spremeni_status(narocilo_id, postavka_id):
     postavka.status = novi
     db.session.commit()
     return jsonify(postavka_json(postavka))
+
+
+@bp.post("/<int:narocilo_id>/zakljucek")
+@samo("natakar")
+def zakljuci(narocilo_id):
+    narocilo = db.session.get(Narocilo, narocilo_id)
+    if narocilo is None:
+        return jsonify(napaka="Naročilo ne obstaja."), 404
+    if narocilo.status != "odprto":
+        return jsonify(napaka="Naročilo ni odprto."), 400
+
+    miza = db.session.get(Miza, narocilo.miza_id)
+    postavke = db.session.scalars(db.select(Postavka).filter_by(narocilo_id=narocilo.id)).all()
+
+    poraba = {}
+    znesek = Decimal("0.00")
+    for postavka in postavke:
+        znesek += postavka.kolicina * postavka.cena
+        poraba[postavka.jed_id] = poraba.get(postavka.jed_id, 0) + postavka.kolicina
+
+    jedi = []
+    for jed_id, kolicina in poraba.items():
+        jed = db.session.get(Jed, jed_id)
+        if jed is None or jed.zaloga < kolicina:
+            return jsonify(napaka="Zaloga ni dovolj."), 409
+        jedi.append((jed, kolicina))
+
+    for jed, kolicina in jedi:
+        jed.zaloga -= kolicina
+
+    zdaj = datetime.now(timezone.utc)
+    narocilo.status = "zakljuceno"
+    narocilo.zakljuceno_ob = zdaj
+    narocilo.skupni_znesek = znesek
+    miza.status = "prosta"
+    db.session.add(
+        Transakcija(vrsta="prodaja", narocilo_id=narocilo.id, znesek=znesek, cas=zdaj)
+    )
+    db.session.commit()
+    return jsonify(
+        id=narocilo.id,
+        status=narocilo.status,
+        skupni_znesek=format(znesek, "f"),
+        miza_id=miza.id,
+        miza_status=miza.status,
+    )

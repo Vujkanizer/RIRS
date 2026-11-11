@@ -30,6 +30,11 @@ function lahkoPostrezi(postavka) {
   return postavka.status === "caka" && postavka.hod == null && postavka.skladisce === "bar";
 }
 
+function znesekNarocila(postavke) {
+  const vsota = postavke.reduce((sestevek, postavka) => sestevek + Number(postavka.cena) * postavka.kolicina, 0);
+  return cena(vsota);
+}
+
 function sZalogo(jedi, kuhinja, bar) {
   const zaloga = new Map([...kuhinja, ...bar].map((artikel) => [artikel.id, artikel.zaloga]));
   return jedi.map((jed) => ({ ...jed, zaloga: zaloga.get(jed.id) ?? 0 }));
@@ -132,6 +137,19 @@ export default function Natakar() {
         body: JSON.stringify({ status: "postrezena" }),
       });
       setPostavke(await api(`/api/narocila/${miza.narocilo_id}/postavke`));
+    } catch (err) {
+      setNarociloNapaka(err.message);
+    }
+  }
+
+  async function zakljuci() {
+    setNarociloNapaka("");
+    try {
+      await api(`/api/narocila/${miza.narocilo_id}/zakljucek`, { method: "POST" });
+      setMize(await api("/api/narocila/mize"));
+      setMizaId(null);
+      setPostavke([]);
+      setJedId(null);
     } catch (err) {
       setNarociloNapaka(err.message);
     }
@@ -270,6 +288,10 @@ export default function Natakar() {
                 onClick={dodaj}
               >
                 Dodaj na naročilo
+              </button>
+              <p>Znesek: {znesekNarocila(postavke)}</p>
+              <button className="rezerviraj" type="button" onClick={zakljuci}>
+                Zaključi račun
               </button>
             </>
           )}
