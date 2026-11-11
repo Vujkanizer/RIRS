@@ -19,6 +19,11 @@ function cena(vrednost) {
   return `${Number(vrednost).toFixed(2).replace(".", ",")} €`;
 }
 
+function sZalogo(jedi, kuhinja, bar) {
+  const zaloga = new Map([...kuhinja, ...bar].map((artikel) => [artikel.id, artikel.zaloga]));
+  return jedi.map((jed) => ({ ...jed, zaloga: zaloga.get(jed.id) ?? 0 }));
+}
+
 export default function Natakar() {
   const [datum, setDatum] = useState(danes);
   const [vrstice, setVrstice] = useState([]);
@@ -54,11 +59,16 @@ export default function Natakar() {
 
   useEffect(() => {
     let preklicano = false;
-    Promise.all([api("/api/narocila/mize"), api("/api/narocila/jedilnik")])
-      .then(([mizeData, jediData]) => {
+    Promise.all([
+      api("/api/narocila/mize"),
+      api("/api/narocila/jedilnik"),
+      api("/api/zaloge/kuhinja"),
+      api("/api/zaloge/bar"),
+    ])
+      .then(([mizeData, jediData, kuhinja, bar]) => {
         if (preklicano) return;
         setMize(mizeData);
-        setJedi(jediData);
+        setJedi(sZalogo(jediData, kuhinja, bar));
       })
       .catch((err) => {
         if (!preklicano) setNarociloNapaka(err.message);
@@ -106,12 +116,20 @@ export default function Natakar() {
   async function dodaj() {
     setNarociloNapaka("");
     try {
+      const izbrana = jedi.find((jed) => jed.id === jedId);
+      if (!izbrana || izbrana.zaloga < 1) return;
       await api(`/api/narocila/${miza.narocilo_id}/postavke`, {
         method: "POST",
         body: JSON.stringify({ jed_id: jedId, kolicina: 1 }),
       });
-      setPostavke(await api(`/api/narocila/${miza.narocilo_id}/postavke`));
-      setJedi(await api("/api/narocila/jedilnik"));
+      const [postavkeData, jediData, kuhinja, bar] = await Promise.all([
+        api(`/api/narocila/${miza.narocilo_id}/postavke`),
+        api("/api/narocila/jedilnik"),
+        api("/api/zaloge/kuhinja"),
+        api("/api/zaloge/bar"),
+      ]);
+      setPostavke(postavkeData);
+      setJedi(sZalogo(jediData, kuhinja, bar));
       setJedId(null);
     } catch (err) {
       setNarociloNapaka(err.message);
@@ -193,22 +211,30 @@ export default function Natakar() {
                 return (
                   <div key={kljuc}>
                     <h3>{naslov}</h3>
-                    {skupina.map((jed) => (
-                      <button
-                        key={jed.id}
-                        type="button"
-                        className={jed.id === jedId ? "meni-jed izbrana" : "meni-jed"}
-                        disabled={!jed.na_voljo}
-                        onClick={() => setJedId(jed.id)}
-                      >
-                        <span>{jed.naziv}</span>
-                        <span>{jed.na_voljo ? cena(jed.cena) : "ni na voljo"}</span>
-                      </button>
-                    ))}
+                    {skupina.map((jed) => {
+                      const prazno = jed.zaloga < 1;
+                      return (
+                        <button
+                          key={jed.id}
+                          type="button"
+                          className={jed.id === jedId ? "meni-jed izbrana" : "meni-jed"}
+                          disabled={prazno}
+                          onClick={() => setJedId(jed.id)}
+                        >
+                          <span>{jed.naziv}</span>
+                          <span>{prazno ? "ni na voljo" : `${cena(jed.cena)} · ${jed.zaloga}`}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               })}
-              <button className="rezerviraj" type="button" disabled={!jedId} onClick={dodaj}>
+              <button
+                className="rezerviraj"
+                type="button"
+                disabled={!jedi.some((jed) => jed.id === jedId && jed.zaloga > 0)}
+                onClick={dodaj}
+              >
                 Dodaj na naročilo
               </button>
             </>
