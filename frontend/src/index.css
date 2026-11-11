@@ -239,10 +239,30 @@ textarea {
 }
 
 .kuhinja-jed {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   border: 1px solid var(--crta);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 10px;
+}
+
+.status-gumb {
+  border: none;
+  border-radius: 8px;
+  background: var(--akcent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.status-gumb:hover {
+  background: var(--akcent-tamni);
 }
 
 .kuhinja-jed strong {

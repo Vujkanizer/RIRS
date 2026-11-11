@@ -78,8 +78,9 @@ def seznam_postavk(narocilo_id):
     if db.session.get(Narocilo, narocilo_id) is None:
         return jsonify(napaka="Naročilo ne obstaja."), 404
     vrstice = db.session.execute(
-        db.select(Postavka, Jed.naziv)
+        db.select(Postavka, Jed.naziv, Skladisce.naziv)
         .join(Jed, Postavka.jed_id == Jed.id)
+        .join(Skladisce, Jed.skladisce_id == Skladisce.id)
         .where(Postavka.narocilo_id == narocilo_id)
         .order_by(Postavka.id)
     ).all()
@@ -91,8 +92,10 @@ def seznam_postavk(narocilo_id):
                 "kolicina": postavka.kolicina,
                 "cena": format(postavka.cena, "f"),
                 "status": postavka.status,
+                "hod": postavka.hod,
+                "skladisce": skladisce,
             }
-            for postavka, naziv in vrstice
+            for postavka, naziv, skladisce in vrstice
         ]
     )
 

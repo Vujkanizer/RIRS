@@ -15,8 +15,19 @@ function danes() {
   return `${datum.getFullYear()}-${mesec}-${dan}`;
 }
 
+const STATUS = {
+  caka: "čaka",
+  pripravljena: "pripravljena",
+  postrezena: "postrežena",
+};
+
 function cena(vrednost) {
   return `${Number(vrednost).toFixed(2).replace(".", ",")} €`;
+}
+
+function lahkoPostrezi(postavka) {
+  if (postavka.status === "pripravljena") return true;
+  return postavka.status === "caka" && postavka.hod == null && postavka.skladisce === "bar";
 }
 
 function sZalogo(jedi, kuhinja, bar) {
@@ -113,6 +124,19 @@ export default function Natakar() {
     }
   }
 
+  async function postrezi(postavka) {
+    setNarociloNapaka("");
+    try {
+      await api(`/api/narocila/${miza.narocilo_id}/postavke/${postavka.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "postrezena" }),
+      });
+      setPostavke(await api(`/api/narocila/${miza.narocilo_id}/postavke`));
+    } catch (err) {
+      setNarociloNapaka(err.message);
+    }
+  }
+
   async function dodaj() {
     setNarociloNapaka("");
     try {
@@ -201,9 +225,19 @@ export default function Natakar() {
           {miza?.narocilo_id && (
             <>
               {postavke.map((postavka) => (
-                <p key={postavka.id}>
-                  {postavka.naziv} · {postavka.kolicina} · {postavka.status} · {cena(postavka.cena)}
-                </p>
+                <div key={postavka.id} className="kuhinja-jed">
+                  <div>
+                    <strong>{postavka.naziv}</strong>
+                    <div className="tiho">
+                      {STATUS[postavka.status] || postavka.status} · {postavka.kolicina} · {cena(postavka.cena)}
+                    </div>
+                  </div>
+                  {lahkoPostrezi(postavka) && (
+                    <button type="button" className="status-gumb" onClick={() => postrezi(postavka)}>
+                      Postrežena
+                    </button>
+                  )}
+                </div>
               ))}
               {KATEGORIJE.map(([kljuc, naslov]) => {
                 const skupina = jedi.filter((jed) => jed.kategorija === kljuc);
