@@ -28,10 +28,12 @@ def create_app():
         return jsonify(status="ok")
 
     from app import models  # noqa: F401
+    from app.kuhinja import bp as kuhinja_bp
     from app.narocila import bp as narocila_bp
     from app.rezervacije import bp as rezervacije_bp
     from app.zaloge import bp as zaloge_bp
 
+    app.register_blueprint(kuhinja_bp)
     app.register_blueprint(narocila_bp)
     app.register_blueprint(rezervacije_bp)
     app.register_blueprint(zaloge_bp)
