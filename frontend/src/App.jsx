@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Kuhinja from "./Kuhinja";
 import Natakar from "./Natakar";
 import Rezervacija from "./Rezervacija";
 
@@ -12,5 +13,6 @@ export default function App() {
   }, []);
 
   if (hash === "#natakar") return <Natakar />;
+  if (hash === "#kuhinja") return <Kuhinja />;
   return <Rezervacija />;
 }
