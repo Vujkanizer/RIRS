@@ -38,6 +38,14 @@ flask run
 
 API je na `http://localhost:5000`. V `.env` sta `DATABASE_URL` in `JWT_SECRET`. Baza se imenuje `glass`.
 
+Začetni podatki, vključno z administratorjem:
+
+```powershell
+python init_db.py
+```
+
+Administrator se prijavi z `admin@gmail.com` in geslom `admin`. Gost se registrira sam. Natakarja in kuharja doda administrator.
+
 ### Frontend
 
 ```powershell

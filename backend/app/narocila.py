@@ -89,6 +89,7 @@ def seznam_postavk(narocilo_id):
         [
             {
                 "id": postavka.id,
+                "jed_id": postavka.jed_id,
                 "naziv": naziv,
                 "kolicina": postavka.kolicina,
                 "cena": format(postavka.cena, "f"),
@@ -163,23 +164,46 @@ def dodaj(narocilo_id):
     if jed.zaloga < 1 or kolicina > jed.zaloga:
         return jsonify(napaka="Jed ni na voljo."), 409
 
+    skladisce = db.session.get(Skladisce, jed.skladisce_id)
     postavka = Postavka(
         narocilo_id=narocilo.id,
         jed_id=jed.id,
         kolicina=kolicina,
         cena=jed.cena,
         status="caka",
+        hod=1 if skladisce is not None and skladisce.naziv == "kuhinja" else None,
     )
     db.session.add(postavka)
     db.session.commit()
     return jsonify(postavka_json(postavka)), 201
 
 
+@bp.delete("/<int:narocilo_id>/postavke/<int:postavka_id>")
+@samo("natakar")
+def izbrisi_postavko(narocilo_id, postavka_id):
+    narocilo = db.session.get(Narocilo, narocilo_id)
+    if narocilo is None:
+        return jsonify(napaka="Naročilo ne obstaja."), 404
+    if narocilo.status != "odprto":
+        return jsonify(napaka="Naročilo ni odprto."), 400
+
+    postavka = db.session.get(Postavka, postavka_id)
+    if postavka is None or postavka.narocilo_id != narocilo.id:
+        return jsonify(napaka="Postavka ne obstaja."), 404
+
+    if postavka.kolicina > 1:
+        postavka.kolicina -= 1
+    else:
+        db.session.delete(postavka)
+    db.session.commit()
+    return jsonify(id=postavka_id)
+
+
 @bp.patch("/<int:narocilo_id>/postavke/<int:postavka_id>")
 def spremeni_status(narocilo_id, postavka_id):
     verify_jwt_in_request()
     kdo = get_jwt().get("vloga")
-    if kdo not in ("kuhar", "natakar"):
+    if kdo not in ("kuhar", "natakar", "administrator"):
         return jsonify(napaka="Nimate dovoljenja."), 403
 
     narocilo = db.session.get(Narocilo, narocilo_id)
@@ -201,12 +225,12 @@ def spremeni_status(narocilo_id, postavka_id):
     skladisce = db.session.get(Skladisce, jed.skladisce_id)
     pijaca = postavka.hod is None and skladisce is not None and skladisce.naziv != "kuhinja"
 
-    if kdo == "kuhar":
+    if kdo == "kuhar" or (kdo == "administrator" and novi == "pripravljena"):
         if novi != "pripravljena":
             return jsonify(napaka="Nimate dovoljenja."), 403
         if pijaca or postavka.status != "caka":
             return jsonify(napaka="Jed ni v pripravi."), 400
-    elif novi != "postrezena":
+    elif kdo not in ("natakar", "administrator") or novi != "postrezena":
         return jsonify(napaka="Nimate dovoljenja."), 403
     elif not (postavka.status == "pripravljena" or (pijaca and postavka.status == "caka")):
         return jsonify(napaka="Jed še ni pripravljena."), 400
@@ -214,6 +238,19 @@ def spremeni_status(narocilo_id, postavka_id):
     postavka.status = novi
     db.session.commit()
     return jsonify(postavka_json(postavka))
+
+
+@bp.post("/mize/<int:miza_id>/zasedi")
+@samo("natakar")
+def zasedi(miza_id):
+    miza = db.session.get(Miza, miza_id)
+    if miza is None:
+        return jsonify(napaka="Miza ne obstaja."), 404
+    if miza.status != "prosta":
+        return jsonify(napaka="Miza ni prosta."), 400
+    miza.status = "zasedena"
+    db.session.commit()
+    return jsonify(id=miza.id, stevilka=miza.stevilka, status=miza.status)
 
 
 @bp.post("/<int:narocilo_id>/zakljucek")

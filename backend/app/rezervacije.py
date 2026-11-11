@@ -37,26 +37,34 @@ def preberi_stevilo(vrednost):
     return vrednost
 
 
-def prekriva(prva_zacetek, prve_minute, druga_zacetek, druge_minute):
-    prvi_konec = prva_zacetek + timedelta(minutes=prve_minute)
-    drugi_konec = druga_zacetek + timedelta(minutes=druge_minute)
-    return prva_zacetek < drugi_konec and druga_zacetek < prvi_konec
+def v_delovnem_casu(zacetek):
+    minute = zacetek.hour * 60 + zacetek.minute
+    return 8 * 60 <= minute < 24 * 60
 
 
-def miza_prosta(miza_id, zacetek, trajanje):
-    potrjene = db.session.scalars(
-        db.select(Rezervacija).filter_by(miza_id=miza_id, status="potrjena")
-    ).all()
-    for rezervacija in potrjene:
-        if prekriva(zacetek, trajanje, rezervacija.zacetek, rezervacija.trajanje_minut):
-            return False
-    return True
+def miza_prosta(miza_id, zacetek):
+    dan = zacetek.astimezone(timezone.utc).date()
+    zacetek_dneva = datetime.combine(dan, datetime.min.time(), tzinfo=timezone.utc)
+    konec_dneva = zacetek_dneva + timedelta(days=1)
+    odprta = db.session.scalar(
+        db.select(Rezervacija.id)
+        .filter(
+            Rezervacija.miza_id == miza_id,
+            Rezervacija.status == "potrjena",
+            Rezervacija.zacetek >= zacetek_dneva,
+            Rezervacija.zacetek < konec_dneva,
+        )
+        .limit(1)
+    )
+    return odprta is None
 
 
 def kot_json(rezervacija):
+    miza = db.session.get(Miza, rezervacija.miza_id)
     return {
         "id": rezervacija.id,
         "miza_id": rezervacija.miza_id,
+        "stevilka_mize": miza.stevilka if miza else None,
         "zacetek": rezervacija.zacetek.isoformat(),
         "trajanje_minut": rezervacija.trajanje_minut,
         "stevilo_oseb": rezervacija.stevilo_oseb,
@@ -75,7 +83,7 @@ def dan():
     zacetek = datetime.combine(izbran, datetime.min.time(), tzinfo=timezone.utc)
     konec = zacetek + timedelta(days=1)
     vrstice = db.session.execute(
-        db.select(Rezervacija.zacetek, Rezervacija.opomba, Miza.stevilka, Uporabnik.ime, Uporabnik.priimek)
+        db.select(Rezervacija.id, Rezervacija.zacetek, Rezervacija.opomba, Miza.stevilka, Uporabnik.ime, Uporabnik.priimek)
         .join(Miza, Rezervacija.miza_id == Miza.id)
         .join(Uporabnik, Rezervacija.uporabnik_id == Uporabnik.id)
         .where(
@@ -88,6 +96,7 @@ def dan():
     return jsonify(
         [
             {
+                "id": vrstica.id,
                 "ura": vrstica.zacetek.astimezone(timezone.utc).strftime("%H:%M"),
                 "stevilka_mize": vrstica.stevilka,
                 "ime": vrstica.ime,
@@ -106,12 +115,8 @@ def proste_mize():
     if zacetek is None:
         return jsonify(napaka="Vnesite datum in uro."), 400
 
-    if "trajanje_minut" in request.args:
-        trajanje = request.args.get("trajanje_minut", type=int)
-        if trajanje is None or trajanje < 1:
-            return jsonify(napaka="Trajanje ni veljavno."), 400
-    else:
-        trajanje = 120
+    if not v_delovnem_casu(zacetek):
+        return jsonify(napaka="Restavracija je odprta od 8. do 23. ure."), 400
 
     mize = db.session.scalars(db.select(Miza).order_by(Miza.stevilka)).all()
     return jsonify(
@@ -120,7 +125,7 @@ def proste_mize():
                 "id": m.id,
                 "stevilka": m.stevilka,
                 "stevilo_sedezev": m.stevilo_sedezev,
-                "prosta": miza_prosta(m.id, zacetek, trajanje),
+                "prosta": miza_prosta(m.id, zacetek),
             }
             for m in mize
         ]
@@ -149,16 +154,11 @@ def vnos():
     if zacetek is None or stevilo_oseb is None or miza_id is None:
         return jsonify(napaka="Vnesite datum, uro, število oseb in mizo."), 400
 
-    if "trajanje_minut" in podatki:
-        trajanje = preberi_stevilo(podatki.get("trajanje_minut"))
-        if trajanje is None:
-            return jsonify(napaka="Trajanje ni veljavno."), 400
-    else:
-        trajanje = 120
-
+    if not v_delovnem_casu(zacetek):
+        return jsonify(napaka="Restavracija je odprta od 8. do 23. ure."), 400
     if db.session.get(Miza, miza_id) is None:
         return jsonify(napaka="Miza ne obstaja."), 404
-    if not miza_prosta(miza_id, zacetek, trajanje):
+    if not miza_prosta(miza_id, zacetek):
         return jsonify(napaka="Miza ni prosta."), 409
 
     opomba = podatki.get("opomba")
@@ -171,7 +171,7 @@ def vnos():
         uporabnik_id=int(get_jwt_identity()),
         miza_id=miza_id,
         zacetek=zacetek,
-        trajanje_minut=trajanje,
+        trajanje_minut=120,
         stevilo_oseb=stevilo_oseb,
         opomba=opomba,
         status="potrjena",
@@ -179,3 +179,29 @@ def vnos():
     db.session.add(rezervacija)
     db.session.commit()
     return jsonify(kot_json(rezervacija)), 201
+
+
+@bp.post("/<int:rezervacija_id>/odpoved")
+@samo("gost")
+def odpoved(rezervacija_id):
+    rezervacija = db.session.get(Rezervacija, rezervacija_id)
+    if rezervacija is None or rezervacija.uporabnik_id != int(get_jwt_identity()):
+        return jsonify(napaka="Rezervacija ne obstaja."), 404
+    if rezervacija.status != "potrjena":
+        return jsonify(napaka="Rezervacijo lahko odpoveste samo, dokler je potrjena."), 400
+    rezervacija.status = "odpovedana"
+    db.session.commit()
+    return jsonify(kot_json(rezervacija))
+
+
+@bp.post("/<int:rezervacija_id>/zakljucek")
+@samo("natakar")
+def zakljucek(rezervacija_id):
+    rezervacija = db.session.get(Rezervacija, rezervacija_id)
+    if rezervacija is None:
+        return jsonify(napaka="Rezervacija ne obstaja."), 404
+    if rezervacija.status != "potrjena":
+        return jsonify(napaka="Rezervacija ni odprta."), 400
+    rezervacija.status = "zakljucena"
+    db.session.commit()
+    return jsonify(kot_json(rezervacija))

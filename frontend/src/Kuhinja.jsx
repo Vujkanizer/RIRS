@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import Odjava from "./Odjava";
 
 const STATUS = {
   caka: "čaka",
@@ -68,7 +69,7 @@ export default function Kuhinja() {
         <h1>
           <span className="znak">Glass</span> — Kuhinja
         </h1>
-        <p className="tiho">Seznam se sam osveži</p>
+        {localStorage.getItem("vloga") !== "administrator" && <Odjava />}
       </header>
 
       <div className="kuhinja-stolpci">
@@ -94,7 +95,6 @@ export default function Kuhinja() {
             </article>
           ))}
           {mize?.length === 0 && <p className="tiho">Ni odprtih jedi.</p>}
-          <p className="tiho">Pijače in naslednji hod na zaslonu nista.</p>
           {napaka && <p className="napaka">{napaka}</p>}
         </section>
 
@@ -107,8 +107,7 @@ export default function Kuhinja() {
             </p>
           ))}
           {jedi.length === 0 && !napaka && <p className="tiho">V kuhinji ni artiklov.</p>}
-          <p className="tiho">Bar na tem seznamu ni.</p>
-        </section>
+         </section>
       </div>
     </main>
   );
