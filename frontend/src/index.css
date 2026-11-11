@@ -227,6 +227,29 @@ textarea {
   align-items: start;
 }
 
+.kuhinja-stolpci {
+  display: grid;
+  grid-template-columns: 1.7fr 0.85fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.kuhinja-miza {
+  margin-bottom: 8px;
+}
+
+.kuhinja-jed {
+  border: 1px solid var(--crta);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.kuhinja-jed strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
 .meni-jed {
   display: flex;
   justify-content: space-between;

@@ -1,24 +1,47 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 
+const STATUS = {
+  caka: "čaka",
+  pripravljena: "pripravljena",
+};
+
 export default function Kuhinja() {
+  const [mize, setMize] = useState(null);
   const [jedi, setJedi] = useState([]);
   const [napaka, setNapaka] = useState("");
 
   useEffect(() => {
     let preklicano = false;
-    api("/api/zaloge/kuhinja")
-      .then((data) => {
+
+    async function nalozi() {
+      try {
+        const data = await api("/api/kuhinja");
         if (!preklicano) {
-          setJedi(data);
+          setMize(data);
           setNapaka("");
         }
+      } catch (err) {
+        if (!preklicano) setNapaka(err.message);
+      }
+    }
+
+    nalozi();
+    const casovnik = setInterval(nalozi, 5000);
+    return () => {
+      preklicano = true;
+      clearInterval(casovnik);
+    };
+  }, []);
+
+  useEffect(() => {
+    let preklicano = false;
+    api("/api/zaloge/kuhinja")
+      .then((data) => {
+        if (!preklicano) setJedi(data);
       })
       .catch((err) => {
-        if (!preklicano) {
-          setJedi([]);
-          setNapaka(err.message);
-        }
+        if (!preklicano) setNapaka(err.message);
       });
     return () => {
       preklicano = true;
@@ -26,23 +49,46 @@ export default function Kuhinja() {
   }, []);
 
   return (
-    <main className="stran">
-      <header className="okvir glava">
+    <main className="stran natakar-stran">
+      <header className="okvir glava natakar-glava">
         <h1>
           <span className="znak">Glass</span> — Kuhinja
         </h1>
+        <p className="tiho">Seznam se sam osveži</p>
       </header>
-      <section className="okvir">
-        <h2>Zaloga</h2>
-        {jedi.map((jed) => (
-          <p key={jed.id} className={jed.zaloga === 0 ? "tiho" : undefined}>
-            {jed.naziv} · {jed.zaloga}
-            {jed.zaloga === 0 ? " · ni na voljo" : ""}
-          </p>
-        ))}
-        {jedi.length === 0 && !napaka && <p className="tiho">V kuhinji ni artiklov.</p>}
-        {napaka && <p className="napaka">{napaka}</p>}
-      </section>
+
+      <div className="kuhinja-stolpci">
+        <section className="okvir">
+          {mize?.map((skupina) => (
+            <article key={skupina.narocilo_id} className="kuhinja-miza">
+              <h2>
+                Miza {skupina.stevilka_mize} · hod {skupina.hod}
+              </h2>
+              {skupina.jedi.map((jed) => (
+                <div key={jed.id} className="kuhinja-jed">
+                  <strong>{jed.naziv}</strong>
+                  <div className="tiho">status: {STATUS[jed.status] || jed.status}</div>
+                </div>
+              ))}
+            </article>
+          ))}
+          {mize?.length === 0 && <p className="tiho">Ni odprtih jedi.</p>}
+          <p className="tiho">Pijače in naslednji hod na zaslonu nista.</p>
+          {napaka && <p className="napaka">{napaka}</p>}
+        </section>
+
+        <section className="okvir">
+          <h2>Zaloga kuhinje</h2>
+          {jedi.map((jed) => (
+            <p key={jed.id} className={jed.zaloga === 0 ? "tiho" : undefined}>
+              {jed.naziv} · {jed.zaloga}
+              {jed.zaloga === 0 ? " · ni na voljo" : ""}
+            </p>
+          ))}
+          {jedi.length === 0 && !napaka && <p className="tiho">V kuhinji ni artiklov.</p>}
+          <p className="tiho">Bar na tem seznamu ni.</p>
+        </section>
+      </div>
     </main>
   );
 }
