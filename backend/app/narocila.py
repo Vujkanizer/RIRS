@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
 from app import db
 from app.auth import samo
-from app.models import Jed, Miza, Narocilo, Postavka, Rezervacija
+from app.models import Jed, Miza, Narocilo, Postavka, Rezervacija, Skladisce
 from app.rezervacije import preberi_stevilo
 
 bp = Blueprint("narocila", __name__, url_prefix="/api/narocila")
@@ -169,3 +169,44 @@ def dodaj(narocilo_id):
     db.session.add(postavka)
     db.session.commit()
     return jsonify(postavka_json(postavka)), 201
+
+
+@bp.patch("/<int:narocilo_id>/postavke/<int:postavka_id>")
+def spremeni_status(narocilo_id, postavka_id):
+    verify_jwt_in_request()
+    kdo = get_jwt().get("vloga")
+    if kdo not in ("kuhar", "natakar"):
+        return jsonify(napaka="Nimate dovoljenja."), 403
+
+    narocilo = db.session.get(Narocilo, narocilo_id)
+    if narocilo is None:
+        return jsonify(napaka="Naročilo ne obstaja."), 404
+    if narocilo.status != "odprto":
+        return jsonify(napaka="Naročilo ni odprto."), 400
+
+    postavka = db.session.get(Postavka, postavka_id)
+    if postavka is None or postavka.narocilo_id != narocilo.id:
+        return jsonify(napaka="Postavka ne obstaja."), 404
+
+    podatki = request.get_json(silent=True) or {}
+    novi = podatki.get("status")
+    if novi not in ("pripravljena", "postrezena"):
+        return jsonify(napaka="Status ni veljaven."), 400
+
+    jed = db.session.get(Jed, postavka.jed_id)
+    skladisce = db.session.get(Skladisce, jed.skladisce_id)
+    pijaca = postavka.hod is None and skladisce is not None and skladisce.naziv != "kuhinja"
+
+    if kdo == "kuhar":
+        if novi != "pripravljena":
+            return jsonify(napaka="Nimate dovoljenja."), 403
+        if pijaca or postavka.status != "caka":
+            return jsonify(napaka="Jed ni v pripravi."), 400
+    elif novi != "postrezena":
+        return jsonify(napaka="Nimate dovoljenja."), 403
+    elif not (postavka.status == "pripravljena" or (pijaca and postavka.status == "caka")):
+        return jsonify(napaka="Jed še ni pripravljena."), 400
+
+    postavka.status = novi
+    db.session.commit()
+    return jsonify(postavka_json(postavka))
