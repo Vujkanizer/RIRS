@@ -38,15 +38,21 @@ export default function Kuhinja() {
 
   useEffect(() => {
     let preklicano = false;
-    api("/api/zaloge/kuhinja")
-      .then((data) => {
+
+    async function nalozi() {
+      try {
+        const data = await api("/api/zaloge/kuhinja");
         if (!preklicano) setJedi(data);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!preklicano) setNapaka(err.message);
-      });
+      }
+    }
+
+    nalozi();
+    const casovnik = setInterval(nalozi, 5000);
     return () => {
       preklicano = true;
+      clearInterval(casovnik);
     };
   }, []);
 
